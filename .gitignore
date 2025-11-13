@@ -1,0 +1,2 @@
+# Ignore Spring Boot config file
+demo/src/main/resources/application.properties
