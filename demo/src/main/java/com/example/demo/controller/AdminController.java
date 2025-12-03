@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.ApiResponse;
 import com.example.demo.dto.CreateUserRequest;
 import com.example.demo.dto.UpdateUserRequest;
 import com.example.demo.dto.UserDTO;
@@ -13,7 +14,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,78 +29,73 @@ public class AdminController {
     private UserMapper userMapper;
 
     @GetMapping("/users")
-    public ResponseEntity<List<UserDTO>> getAllUsers() {
-        List<User> users = userService.getAllUsers();
-        List<UserDTO> dtos = users.stream()
-                .map(userMapper::toDTO)
-                .toList();
-        return ResponseEntity.ok(dtos);
+    public ResponseEntity<ApiResponse<List<UserDTO>>> getAllUsers() {
+        try {
+            List<User> users = userService.getAllUsers();
+            List<UserDTO> dtos = users.stream()
+                    .map(userMapper::toDTO)
+                    .toList();
+            return ResponseEntity.ok(ApiResponse.success(dtos));
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.error(e.getMessage()));
+        }
     }
 
     @PostMapping("/users")
-    public ResponseEntity<?> createUser(@Valid @RequestBody CreateUserRequest request) {
+    public ResponseEntity<ApiResponse<UserDTO>> createUser(@Valid @RequestBody CreateUserRequest request) {
         try {
             User user = userService.createUserByAdmin(request);
-            return ResponseEntity.ok(userMapper.toDTO(user));
+            return ResponseEntity.ok(ApiResponse.success("User created successfully", userMapper.toDTO(user)));
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return ResponseEntity.ok(ApiResponse.error(e.getMessage()));
         }
     }
 
     @PutMapping("/users")
-    public ResponseEntity<?> updateUser(@Valid @RequestBody UpdateUserRequest request) {
+    public ResponseEntity<ApiResponse<UserDTO>> updateUser(@Valid @RequestBody UpdateUserRequest request) {
         try {
             User updatedUser = userService.updateUserByAdmin(request);
-            return ResponseEntity.ok(userMapper.toDTO(updatedUser));
+            return ResponseEntity.ok(ApiResponse.success("User updated successfully", userMapper.toDTO(updatedUser)));
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return ResponseEntity.ok(ApiResponse.error(e.getMessage()));
         }
     }
 
     @DeleteMapping("/users")
-    public ResponseEntity<?> deleteUser(@RequestBody Map<String, String> payload) {
+    public ResponseEntity<ApiResponse<Void>> deleteUser(@RequestBody Map<String, String> payload) {
         try {
             String username = payload.get("username");
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String currentUsername = authentication.getName();
 
             userService.deleteUserByAdmin(username, currentUsername);
-
-            Map<String, String> response = new HashMap<>();
-            response.put("message", "User deleted successfully");
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success("User deleted successfully", null));
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return ResponseEntity.ok(ApiResponse.error(e.getMessage()));
         }
     }
 
     @PostMapping("/downgrade")
-    public ResponseEntity<?> downgradeAccount(@RequestBody Map<String, String> payload) {
+    public ResponseEntity<ApiResponse<UserDTO>> downgradeAccount(@RequestBody Map<String, String> payload) {
         try {
             String username = payload.get("username");
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String currentUsername = authentication.getName();
 
             User user = userService.downgradeAdmin(username, currentUsername);
-            return ResponseEntity.ok(userMapper.toDTO(user));
+            return ResponseEntity.ok(ApiResponse.success("Account downgraded successfully", userMapper.toDTO(user)));
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return ResponseEntity.ok(ApiResponse.error(e.getMessage()));
         }
     }
 
     @GetMapping("/admin-count")
-    public ResponseEntity<Map<String, Long>> getAdminCount() {
-        long count = userService.countAdmins();
-        Map<String, Long> response = new HashMap<>();
-        response.put("count", count);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ApiResponse<Long>> getAdminCount() {
+        try {
+            long count = userService.countAdmins();
+            return ResponseEntity.ok(ApiResponse.success(count));
+        } catch (Exception e) {
+            return ResponseEntity.ok(ApiResponse.error(e.getMessage()));
+        }
     }
 }

@@ -20,18 +20,4 @@ public class UserMapper {
         dto.setProfilePhoto(user.getProfilePhoto());
         return dto;
     }
-
-    public User toEntity(UserDTO dto) {
-        if (dto == null) return null;
-
-        User user = new User();
-        user.setId(dto.getId());
-        user.setUsername(dto.getUsername());
-        user.setFullname(dto.getFullname());
-        user.setEmail(dto.getEmail());
-        user.setGender(dto.getGender());
-        user.setRole(dto.getRole());
-        user.setProfilePhoto(dto.getProfilePhoto());
-        return user;
-    }
 }

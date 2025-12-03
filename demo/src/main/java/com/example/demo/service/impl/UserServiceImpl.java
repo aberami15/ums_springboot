@@ -1,5 +1,6 @@
 package com.example.demo.service.impl;
 
+import com.example.demo.service.WebSocketService;
 import com.example.demo.dto.CreateUserRequest;
 import com.example.demo.dto.UpdateProfileRequest;
 import com.example.demo.dto.UpdateUserRequest;
@@ -7,6 +8,10 @@ import com.example.demo.model.User;
 import com.example.demo.model.UserRole;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.UserService;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,66 +23,42 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final WebSocketService webSocketService;
 
-    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserServiceImpl(UserRepository userRepository,
+                           PasswordEncoder passwordEncoder,
+                           WebSocketService webSocketService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.webSocketService = webSocketService;
     }
 
     @Override
     public List<User> getAllUsers() {
+        System.out.println("Fetching all users from database (real-time)");
         return userRepository.findAll();
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public long getUserCount() {
+        return userRepository.count();
+    }
+
+    @Override
+    @Cacheable(value = "users", key = "#username")
     public User findByUsername(String username) {
+        System.out.println("Fetching user from database: " + username);
         return userRepository.findByUsername(username).orElse(null);
     }
 
     @Override
-    public User getUserById(Long id) {
-        return userRepository.findById(id).orElse(null);
-    }
-
-    @Override
     @Transactional
-    public User createUser(User user) {
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        return userRepository.save(user);
-    }
-
-    @Override
-    @Transactional
-    public User updateUser(Long id, User user) {
-        return userRepository.findById(id)
-                .map(existingUser -> {
-                    existingUser.setUsername(user.getUsername());
-                    existingUser.setFullname(user.getFullname());
-                    existingUser.setEmail(user.getEmail());
-                    existingUser.setGender(user.getGender());
-                    existingUser.setRole(user.getRole());
-                    existingUser.setProfilePhoto(user.getProfilePhoto());
-                    if (user.getPassword() != null && !user.getPassword().isEmpty()) {
-                        existingUser.setPassword(passwordEncoder.encode(user.getPassword()));
-                    }
-                    return userRepository.save(existingUser);
-                })
-                .orElse(null);
-    }
-
-    @Override
-    @Transactional
-    public void deleteUser(Long id) {
-        userRepository.deleteById(id);
-    }
-
-    @Override
-    @Transactional
+    @CachePut(value = "users", key = "#result.username")
     public User createUserByAdmin(CreateUserRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("Username already exists");
         }
-
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email already exists");
         }
@@ -91,11 +72,18 @@ public class UserServiceImpl implements UserService {
         user.setRole(request.getRole());
         user.setProfilePhoto(request.getProfilePhoto());
 
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        // Broadcast changes
+        webSocketService.sendUserCount(userRepository.count());
+        webSocketService.sendNotification("New user created: " + savedUser.getUsername());
+
+        return savedUser;
     }
 
     @Override
     @Transactional
+    @CachePut(value = "users", key = "#request.username")
     public User updateUserByAdmin(UpdateUserRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -115,11 +103,17 @@ public class UserServiceImpl implements UserService {
             user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         }
 
-        return userRepository.save(user);
+        User updatedUser = userRepository.save(user);
+
+        // Broadcast changes
+        webSocketService.sendNotification("User updated: " + updatedUser.getUsername());
+
+        return updatedUser;
     }
 
     @Override
     @Transactional
+    @CacheEvict(value = "users", key = "#username")
     public void deleteUserByAdmin(String username, String currentUsername) {
         if (username.equals(currentUsername)) {
             throw new RuntimeException("You cannot delete your own account");
@@ -129,10 +123,15 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         userRepository.delete(user);
+
+        // Broadcast changes
+        webSocketService.sendUserCount(userRepository.count());
+        webSocketService.sendNotification("User deleted: " + username);
     }
 
     @Override
     @Transactional
+    @CachePut(value = "users", key = "#username")
     public User downgradeAdmin(String username, String currentUsername) {
         if (!username.equals(currentUsername)) {
             throw new RuntimeException("You can only downgrade your own account");
@@ -151,7 +150,12 @@ public class UserServiceImpl implements UserService {
         }
 
         user.setRole(UserRole.USER);
-        return userRepository.save(user);
+        User downgradedUser = userRepository.save(user);
+
+        // Broadcast changes
+        webSocketService.sendNotification("Admin downgraded: " + username);
+
+        return downgradedUser;
     }
 
     @Override
@@ -161,6 +165,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    @CachePut(value = "users", key = "#username")
     public User updateProfile(String username, UpdateProfileRequest request) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));

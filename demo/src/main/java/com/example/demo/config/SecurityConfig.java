@@ -67,6 +67,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()  // Allow login without auth
+                        .requestMatchers("/ws/**").permitAll()        // Websocket
                         .requestMatchers("/error").permitAll()        // Allow error endpoint
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/users/me", "/api/users/update-profile").authenticated()

@@ -5,6 +5,7 @@ import com.example.demo.dto.LoginResponse;
 import com.example.demo.model.User;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.security.JwtUtil;
+import com.example.demo.service.SessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -35,6 +36,9 @@ public class AuthController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private SessionService sessionService;
+
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
         try {
@@ -51,6 +55,9 @@ public class AuthController {
             User user = userRepository.findByUsername(loginRequest.getUsername())
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
+            // Create Redis session
+            sessionService.createSession(user.getUsername(), user);
+
             LoginResponse response = new LoginResponse(jwt, user.getRole().name());
             return ResponseEntity.ok(response);
 
@@ -65,7 +72,7 @@ public class AuthController {
         }
     }
 
-@PostMapping("/validate")
+    @PostMapping("/validate")
     public ResponseEntity<?> validateToken(@RequestHeader("Authorization") String authHeader) {
         try {
             String token = authHeader.substring(7);
@@ -73,6 +80,9 @@ public class AuthController {
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
             if (jwtUtil.validateToken(token, userDetails)) {
+                // Refresh Redis session
+                sessionService.refreshSession(username);
+
                 User user = userRepository.findByUsername(username)
                         .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -83,6 +93,25 @@ public class AuthController {
             return ResponseEntity.status(401).body("Invalid token");
         } catch (Exception e) {
             return ResponseEntity.status(401).body("Invalid token");
+        }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = authHeader.substring(7);
+            String username = jwtUtil.extractUsername(token);
+
+            // Delete Redis session
+            sessionService.deleteSession(username);
+
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Logged out successfully");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "Logout failed");
+            return ResponseEntity.status(500).body(error);
         }
     }
 }
