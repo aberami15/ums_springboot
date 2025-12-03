@@ -1,0 +1,316 @@
+<div class="dashboard-container">
+  <nav class="navbar">
+    <div class="nav-brand">
+      <h2>Admin Dashboard</h2>
+    </div>
+    <div class="nav-actions">
+      <span class="user-count-badge">Total Users: <strong>{{ totalUserCount }}</strong></span>
+      <span class="user-info">{{ currentUser?.fullname }} (Admin)</span>
+      <button class="btn-secondary" (click)="openDowngradeModal()" *ngIf="canDowngrade()">Downgrade Account</button>
+      <button class="btn-danger" (click)="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="content">
+    <div class="content-header">
+      <h3>User Management</h3>
+      <button class="btn-primary" (click)="openCreateModal()"><span>+</span> Create New User</button>
+    </div>
+
+    <div class="table-container">
+      <table class="users-table">
+        <thead>
+        <tr>
+          <th>Username</th>
+          <th>Full Name</th>
+          <th>Email</th>
+          <th>Gender</th>
+          <th>Role</th>
+          <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr *ngFor="let user of users">
+          <td><strong>{{ user.username }}</strong></td>
+          <td>{{ user.fullname }}</td>
+          <td>{{ user.email }}</td>
+          <td>{{ user.gender }}</td>
+          <td>
+            <span class="badge" [class.badge-admin]="user.role === 'ADMIN'" [class.badge-user]="user.role === 'USER'">{{ user.role }}</span>
+          </td>
+          <td>
+            <div class="action-buttons">
+              <button class="btn-icon btn-edit" (click)="openEditModal(user)" title="Edit">Edit</button>
+              <button class="btn-icon btn-delete" (click)="openDeleteModal(user)" [disabled]="isCurrentUser(user)" [title]="isCurrentUser(user) ? 'Cannot delete own account' : 'Delete'">Delete</button>
+            </div>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ========== CREATE USER MODAL ========== -->
+<div class="modal-overlay" *ngIf="showCreateModal">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Create New User</h3>
+      <button class="btn-close" (click)="closeCreateModal()">×</button>
+    </div>
+    <form [formGroup]="createForm" (ngSubmit)="onCreateSubmit()">
+      <div class="photo-upload-section">
+        <div class="photo-preview-container">
+          <!-- Clickable photo preview box -->
+          <div class="photo-preview" (click)="triggerCreateFileInput()" style="cursor: pointer;" title="Click to upload photo">
+            <img *ngIf="createPhotoPreview" [src]="createPhotoPreview" alt="Profile Preview"/>
+            <div *ngIf="!createPhotoPreview" class="photo-placeholder">📷</div>
+          </div>
+          <div class="photo-actions">
+            <!-- Hidden file input with template reference -->
+            <input
+              type="file"
+              #createFileInput
+              class="file-input-hidden"
+              accept="image/*"
+              (change)="onCreatePhotoSelect($event)"
+            />
+            <!-- Dynamic button text based on photo state -->
+            <button type="button" class="btn-upload" (click)="triggerCreateFileInput()">
+              {{ createPhotoPreview ? 'Re-upload Photo' : 'Upload Photo' }}
+            </button>
+            <button type="button" class="btn-remove" *ngIf="createPhotoPreview" (click)="removeCreatePhoto()">Remove</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username <span class="required">*</span></label>
+          <input type="text" formControlName="username" class="form-control" [class.is-invalid]="submitted && cf['username'].errors" [class.is-valid]="submitted && !cf['username'].errors && cf['username'].value" maxlength="50" placeholder="Enter username"/>
+          <div class="char-counter" [class.warning]="getCharCount('username', 'create') > 40" [class.danger]="getCharCount('username', 'create') >= 50">{{ getCharCount('username', 'create') }} / {{ getMaxLength('username') }}</div>
+          <div class="invalid-feedback" *ngIf="submitted && cf['username'].errors">
+            <div *ngIf="cf['username'].errors['required']">Username is required</div>
+            <div *ngIf="cf['username'].errors['minlength']">Username must be at least 3 characters</div>
+            <div *ngIf="cf['username'].errors['pattern']">Only letters, numbers and underscores allowed</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Role <span class="required">*</span></label>
+          <select formControlName="role" class="form-control">
+            <option value="USER">User</option>
+            <option value="ADMIN">Admin</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Password <span class="required">*</span></label>
+          <input type="password" formControlName="password" class="form-control" [class.is-invalid]="submitted && cf['password'].errors" [class.is-valid]="submitted && !cf['password'].errors && cf['password'].value" maxlength="50" placeholder="Enter password"/>
+          <div class="char-counter" [class.warning]="getCharCount('password', 'create') > 40" [class.danger]="getCharCount('password', 'create') >= 50">{{ getCharCount('password', 'create') }} / {{ getMaxLength('password') }}</div>
+          <div class="invalid-feedback" *ngIf="submitted && cf['password'].errors">
+            <div *ngIf="cf['password'].errors['required']">Password is required</div>
+            <div *ngIf="cf['password'].errors['minlength']">Password must be at least 6 characters</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Confirm Password <span class="required">*</span></label>
+          <input type="password" formControlName="confirmPassword" class="form-control" [class.is-invalid]="submitted && passwordsDontMatch('create')" [class.is-valid]="passwordsMatch('create')" maxlength="50" placeholder="Confirm password"/>
+          <div class="password-match-indicator">
+            <span *ngIf="passwordsMatch('create')" class="match-success">✓ Passwords match</span>
+            <span *ngIf="passwordsDontMatch('create')" class="match-error">✗ Passwords don't match</span>
+          </div>
+          <div class="invalid-feedback" *ngIf="submitted && cf['confirmPassword'].errors">
+            <div *ngIf="cf['confirmPassword'].errors['required']">Please confirm password</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Full Name <span class="required">*</span></label>
+        <input type="text" formControlName="fullname" class="form-control" [class.is-invalid]="submitted && cf['fullname'].errors" [class.is-valid]="submitted && !cf['fullname'].errors && cf['fullname'].value" maxlength="250" placeholder="Enter full name"/>
+        <div class="char-counter" [class.warning]="getCharCount('fullname', 'create') > 200" [class.danger]="getCharCount('fullname', 'create') >= 250">{{ getCharCount('fullname', 'create') }} / {{ getMaxLength('fullname') }}</div>
+        <div class="invalid-feedback" *ngIf="submitted && cf['fullname'].errors">Full name is required</div>
+      </div>
+
+      <div class="form-group">
+        <label>Email <span class="required">*</span></label>
+        <input type="email" formControlName="email" class="form-control" [class.is-invalid]="submitted && cf['email'].errors" [class.is-valid]="submitted && !cf['email'].errors && cf['email'].value" maxlength="100" placeholder="Enter email"/>
+        <div class="char-counter" [class.warning]="getCharCount('email', 'create') > 80" [class.danger]="getCharCount('email', 'create') >= 100">{{ getCharCount('email', 'create') }} / {{ getMaxLength('email') }}</div>
+        <div class="invalid-feedback" *ngIf="submitted && cf['email'].errors">
+          <div *ngIf="cf['email'].errors['required']">Email is required</div>
+          <div *ngIf="cf['email'].errors['email']">Enter a valid email</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Gender <span class="required">*</span></label>
+        <select formControlName="gender" class="form-control" [class.is-invalid]="submitted && cf['gender'].errors" [class.is-valid]="submitted && !cf['gender'].errors && cf['gender'].value">
+          <option value="">Select Gender</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+          <option value="Other">Other</option>
+        </select>
+        <div class="invalid-feedback" *ngIf="submitted && cf['gender'].errors">Gender is required</div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-reset" (click)="resetCreateForm()" [disabled]="isLoading">Reset</button>
+        <button type="button" class="btn-secondary" (click)="closeCreateModal()" [disabled]="isLoading">Cancel</button>
+        <button type="submit" class="btn-primary" [disabled]="isLoading">
+          <span *ngIf="!isLoading">Create User</span>
+          <span *ngIf="isLoading" class="spinner"></span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ========== EDIT USER MODAL ========== -->
+<div class="modal-overlay" *ngIf="showEditModal">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Edit User: {{ selectedUser?.username }}</h3>
+      <button class="btn-close" (click)="closeEditModal()">×</button>
+    </div>
+    <form [formGroup]="editForm" (ngSubmit)="onEditSubmit()">
+      <div class="photo-upload-section">
+        <div class="photo-preview-container">
+          <!-- Clickable photo preview box -->
+          <div class="photo-preview" (click)="triggerEditFileInput()" style="cursor: pointer;" title="Click to upload photo">
+            <img *ngIf="editPhotoPreview" [src]="editPhotoPreview" alt="Profile Preview"/>
+            <div *ngIf="!editPhotoPreview" class="photo-placeholder">📷</div>
+          </div>
+          <div class="photo-actions">
+            <!-- Hidden file input with template reference -->
+            <input
+              type="file"
+              #editFileInput
+              class="file-input-hidden"
+              accept="image/*"
+              (change)="onEditPhotoSelect($event)"
+            />
+            <!-- Dynamic button text based on photo state -->
+            <button type="button" class="btn-upload" (click)="triggerEditFileInput()">
+              {{ editPhotoPreview ? 'Re-upload Photo' : 'Upload Photo' }}
+            </button>
+            <button type="button" class="btn-remove" *ngIf="editPhotoPreview" (click)="removeEditPhoto()">Remove</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Full Name <span class="required">*</span></label>
+        <input type="text" formControlName="fullname" class="form-control" [class.is-invalid]="submitted && ef['fullname'].errors" [class.is-valid]="submitted && !ef['fullname'].errors && ef['fullname'].value" maxlength="250"/>
+        <div class="char-counter" [class.warning]="getCharCount('fullname', 'edit') > 200" [class.danger]="getCharCount('fullname', 'edit') >= 250">{{ getCharCount('fullname', 'edit') }} / {{ getMaxLength('fullname') }}</div>
+        <div class="invalid-feedback" *ngIf="submitted && ef['fullname'].errors">Full name is required</div>
+      </div>
+
+      <div class="form-group">
+        <label>Email <span class="required">*</span></label>
+        <input type="email" formControlName="email" class="form-control" [class.is-invalid]="submitted && ef['email'].errors" [class.is-valid]="submitted && !ef['email'].errors && ef['email'].value" maxlength="100"/>
+        <div class="char-counter" [class.warning]="getCharCount('email', 'edit') > 80" [class.danger]="getCharCount('email', 'edit') >= 100">{{ getCharCount('email', 'edit') }} / {{ getMaxLength('email') }}</div>
+        <div class="invalid-feedback" *ngIf="submitted && ef['email'].errors">
+          <div *ngIf="ef['email'].errors['required']">Email is required</div>
+          <div *ngIf="ef['email'].errors['email']">Enter a valid email</div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Gender <span class="required">*</span></label>
+          <select formControlName="gender" class="form-control" [class.is-invalid]="submitted && ef['gender'].errors" [class.is-valid]="submitted && !ef['gender'].errors && ef['gender'].value">
+            <option value="">Select Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+          <div class="invalid-feedback" *ngIf="submitted && ef['gender'].errors">Gender is required</div>
+        </div>
+
+        <div class="form-group">
+          <label>Role <span class="required">*</span></label>
+          <select formControlName="role" class="form-control">
+            <option value="USER">User</option>
+            <option value="ADMIN">Admin</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <p class="section-title">Change Password (Optional)</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>New Password</label>
+          <input type="password" formControlName="newPassword" class="form-control" [class.is-invalid]="submitted && ef['newPassword'].errors" maxlength="50" placeholder="Leave blank to keep current"/>
+          <div class="char-counter" *ngIf="ef['newPassword'].value" [class.warning]="getCharCount('newPassword', 'edit') > 40" [class.danger]="getCharCount('newPassword', 'edit') >= 50">{{ getCharCount('newPassword', 'edit') }} / {{ getMaxLength('password') }}</div>
+          <div class="invalid-feedback" *ngIf="submitted && ef['newPassword'].errors">
+            <div *ngIf="ef['newPassword'].errors['minlength']">Password must be at least 6 characters</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Confirm New Password</label>
+          <input type="password" formControlName="confirmNewPassword" class="form-control" [class.is-invalid]="ef['newPassword'].value && passwordsDontMatch('edit')" [class.is-valid]="ef['newPassword'].value && passwordsMatch('edit')" maxlength="50" placeholder="Confirm new password"/>
+          <div class="password-match-indicator" *ngIf="ef['newPassword'].value">
+            <span *ngIf="passwordsMatch('edit')" class="match-success">✓ Passwords match</span>
+            <span *ngIf="passwordsDontMatch('edit')" class="match-error">✗ Passwords don't match</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-reset" (click)="resetEditForm()" [disabled]="isLoading">Reset</button>
+        <button type="button" class="btn-secondary" (click)="closeEditModal()" [disabled]="isLoading">Cancel</button>
+        <button type="submit" class="btn-primary" [disabled]="isLoading || !editForm.dirty">
+          <span *ngIf="!isLoading">Update User</span>
+          <span *ngIf="isLoading" class="spinner"></span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ========== DELETE MODAL ========== -->
+<div class="modal-overlay" *ngIf="showDeleteModal" >
+  <div class="modal-content modal-small" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirm Delete</h3>
+      <button class="btn-close" (click)="closeDeleteModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p>Are you sure you want to delete user <strong>{{ selectedUser?.username }}</strong>?</p>
+      <p class="warning-text">This action cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" (click)="closeDeleteModal()" [disabled]="isLoading">Cancel</button>
+      <button type="button" class="btn-danger" (click)="confirmDelete()" [disabled]="isLoading">
+        <span *ngIf="!isLoading">Delete User</span>
+        <span *ngIf="isLoading" class="spinner"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DOWNGRADE MODAL ========== -->
+<div class="modal-overlay" *ngIf="showDowngradeModal" >
+  <div class="modal-content modal-small" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirm Downgrade</h3>
+      <button class="btn-close" (click)="closeDowngradeModal()" >×</button>
+    </div>
+    <div class="modal-body">
+      <p>Are you sure you want to downgrade your account to a regular user?</p>
+      <p class="warning-text">You will lose admin privileges.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" (click)="closeDowngradeModal()" [disabled]="isLoading">Cancel</button>
+      <button type="button" class="btn-danger" (click)="confirmDowngrade()" [disabled]="isLoading || !canDowngrade()">
+        <span *ngIf="!isLoading">Downgrade Account</span>
+        <span *ngIf="isLoading" class="spinner"></span>
+      </button>
+    </div>
+  </div>
+</div>

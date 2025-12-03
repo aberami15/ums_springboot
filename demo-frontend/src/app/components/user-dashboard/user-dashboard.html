@@ -1,0 +1,259 @@
+<div class="dashboard-container">
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <h2>User Dashboard</h2>
+    </div>
+    <div class="nav-actions">
+      <span class="user-count-badge">Total Users: <strong>{{ totalUserCount }}</strong></span>
+      <span class="user-info">{{ currentUser?.fullname }}</span>
+      <button class="btn-danger" (click)="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="content">
+    <div class="profile-card" *ngIf="currentUser">
+      <!-- Profile Header with Photo -->
+      <div class="profile-header">
+        <div class="profile-avatar">
+          <img *ngIf="currentUser.profilePhoto" [src]="currentUser.profilePhoto" alt="Profile Photo" />
+          <div *ngIf="!currentUser.profilePhoto" class="avatar-placeholder">
+            {{ currentUser.fullname.charAt(0).toUpperCase() }}
+          </div>
+        </div>
+        <div class="profile-info">
+          <h3>{{ currentUser.fullname }}</h3>
+          <span class="role-badge">{{ currentUser.role }}</span>
+        </div>
+        <button class="btn-primary" (click)="openEditModal()">
+          Edit Profile
+        </button>
+      </div>
+
+      <!-- Profile Details -->
+      <div class="profile-details">
+        <div class="detail-row">
+          <div class="detail-label">Username</div>
+          <div class="detail-value">{{ currentUser.username }}</div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-label">Email</div>
+          <div class="detail-value">{{ currentUser.email }}</div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-label">Full Name</div>
+          <div class="detail-value">{{ currentUser.fullname }}</div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-label">Gender</div>
+          <div class="detail-value">{{ currentUser.gender }}</div>
+        </div>
+
+        <div class="detail-row">
+          <div class="detail-label">Role</div>
+          <div class="detail-value">
+            <span class="badge badge-user">{{ currentUser.role }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== EDIT PROFILE MODAL ========== -->
+<div class="modal-overlay" *ngIf="showEditModal">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Edit Profile</h3>
+      <button class="btn-close" (click)="closeEditModal()">×</button>
+    </div>
+
+    <form [formGroup]="profileForm" (ngSubmit)="onSubmit()">
+      <div class="modal-body">
+        <!-- Photo Upload Section -->
+        <div class="photo-upload-section">
+          <div class="photo-preview-container">
+            <div class="photo-preview" (click)="triggerFileInput()" style="cursor: pointer;" title="Click to upload photo">
+              <img *ngIf="photoPreview" [src]="photoPreview" alt="Profile Preview"/>
+              <div *ngIf="!photoPreview" class="photo-placeholder">📷</div>
+            </div>
+            <div class="photo-actions">
+              <input
+                type="file"
+                #fileInput
+                class="file-input-hidden"
+                accept="image/*"
+                (change)="onPhotoSelect($event)"
+              />
+
+              <button type="button" class="btn-upload" (click)="triggerFileInput()">
+                {{ photoPreview ? 'Re-upload Photo' : 'Upload Photo' }}
+              </button>
+              <button type="button" class="btn-remove" *ngIf="photoPreview" (click)="removePhoto()">
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Username Field (Disabled) -->
+        <div class="form-group">
+          <label>Username</label>
+          <input
+            type="text"
+            class="form-control"
+            [value]="currentUser?.username"
+            disabled
+          />
+          <small class="form-text">Username cannot be changed</small>
+        </div>
+
+        <!-- Full Name Field -->
+        <div class="form-group">
+          <label>Full Name <span class="required">*</span></label>
+          <input
+            type="text"
+            formControlName="fullname"
+            class="form-control"
+            [class.is-invalid]="submitted && f['fullname'].errors"
+            [class.is-valid]="submitted && !f['fullname'].errors && f['fullname'].value"
+            maxlength="250"
+            placeholder="Enter full name"
+          />
+          <div class="char-counter"
+               [class.warning]="getCharCount('fullname') > 200"
+               [class.danger]="getCharCount('fullname') >= 250">
+            {{ getCharCount('fullname') }} / {{ getMaxLength('fullname') }}
+          </div>
+          <div class="invalid-feedback" *ngIf="submitted && f['fullname'].errors">
+            Full name is required
+          </div>
+        </div>
+
+        <!-- Email Field -->
+        <div class="form-group">
+          <label>Email <span class="required">*</span></label>
+          <input
+            type="email"
+            formControlName="email"
+            class="form-control"
+            [class.is-invalid]="submitted && f['email'].errors"
+            [class.is-valid]="submitted && !f['email'].errors && f['email'].value"
+            maxlength="100"
+            placeholder="Enter email"
+          />
+          <div class="char-counter"
+               [class.warning]="getCharCount('email') > 80"
+               [class.danger]="getCharCount('email') >= 100">
+            {{ getCharCount('email') }} / {{ getMaxLength('email') }}
+          </div>
+          <div class="invalid-feedback" *ngIf="submitted && f['email'].errors">
+            <div *ngIf="f['email'].errors['required']">Email is required</div>
+            <div *ngIf="f['email'].errors['email']">Enter a valid email</div>
+          </div>
+        </div>
+
+        <!-- Gender Field -->
+        <div class="form-group">
+          <label>Gender <span class="required">*</span></label>
+          <select
+            formControlName="gender"
+            class="form-control"
+            [class.is-invalid]="submitted && f['gender'].errors"
+            [class.is-valid]="submitted && !f['gender'].errors && f['gender'].value"
+          >
+            <option value="">Select Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+          <div class="invalid-feedback" *ngIf="submitted && f['gender'].errors">
+            Gender is required
+          </div>
+        </div>
+
+        <!-- Password Change Section -->
+        <div class="divider"></div>
+        <p class="section-title">Change Password (Optional)</p>
+        <p class="section-note">Leave blank to keep your current password</p>
+
+        <!-- Current Password -->
+        <div class="form-group">
+          <label>Current Password</label>
+          <input
+            type="password"
+            formControlName="currentPassword"
+            class="form-control"
+            [class.is-invalid]="submitted && isChangingPassword() && !f['currentPassword'].value"
+            [class.is-valid]="submitted && f['currentPassword'].value"
+            maxlength="50"
+            placeholder="Enter current password"
+          />
+          <div class="invalid-feedback" *ngIf="submitted && isChangingPassword() && !f['currentPassword'].value">
+            Current password is required to change password
+          </div>
+        </div>
+
+        <div class="form-row">
+          <!-- New Password -->
+          <div class="form-group">
+            <label>New Password</label>
+            <input
+              type="password"
+              formControlName="newPassword"
+              class="form-control"
+              [class.is-invalid]="submitted && f['newPassword'].errors"
+              maxlength="50"
+              placeholder="Enter new password"
+            />
+            <div class="char-counter" *ngIf="f['newPassword'].value"
+                 [class.warning]="getCharCount('newPassword') > 40"
+                 [class.danger]="getCharCount('newPassword') >= 50">
+              {{ getCharCount('newPassword') }} / {{ getMaxLength('password') }}
+            </div>
+            <div class="invalid-feedback" *ngIf="submitted && f['newPassword'].errors">
+              <div *ngIf="f['newPassword'].errors['minlength']">Password must be at least 6 characters</div>
+            </div>
+          </div>
+
+          <!-- Confirm New Password -->
+          <div class="form-group">
+            <label>Confirm New Password</label>
+            <input
+              type="password"
+              formControlName="confirmNewPassword"
+              class="form-control"
+              [class.is-invalid]="f['newPassword'].value && passwordsDontMatch()"
+              [class.is-valid]="f['newPassword'].value && passwordsMatch()"
+              maxlength="50"
+              placeholder="Confirm new password"
+            />
+            <!-- Real-time password match indicator -->
+            <div class="password-match-indicator" *ngIf="f['newPassword'].value">
+              <span *ngIf="passwordsMatch()" class="match-success">✓ Passwords match</span>
+              <span *ngIf="passwordsDontMatch()" class="match-error">✗ Passwords don't match</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer with Buttons -->
+      <div class="modal-footer">
+        <button type="button" class="btn-reset" (click)="resetForm()" [disabled]="isLoading">
+          Reset
+        </button>
+        <button type="button" class="btn-secondary" (click)="closeEditModal()" [disabled]="isLoading">
+          Cancel
+        </button>
+        <button type="submit" class="btn-primary-update" [disabled]="isLoading || !profileForm.dirty">
+          <span *ngIf="!isLoading">Update Profile</span>
+          <span *ngIf="isLoading" class="spinner"></span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

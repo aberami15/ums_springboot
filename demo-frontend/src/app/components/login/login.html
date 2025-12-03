@@ -1,0 +1,56 @@
+<div class="login-container">
+  <div class="login-card">
+    <div class="login-header">
+      <h2>User Management System</h2>
+      <p>Please login to continue</p>
+    </div>
+
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input
+          type="text"
+          id="username"
+          formControlName="username"
+          class="form-control"
+          [class.is-invalid]="submitted && f['username'].errors"
+          [class.is-valid]="submitted && !f['username'].errors && f['username'].value"
+          maxlength="50"
+          placeholder="Enter your username"
+        />
+        <div class="invalid-feedback" *ngIf="submitted && f['username'].errors">
+          <div *ngIf="f['username'].errors['required']">Username is required</div>
+          <div *ngIf="f['username'].errors['minlength']">Username must be at least 3 characters</div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input
+          type="password"
+          id="password"
+          formControlName="password"
+          class="form-control"
+          [class.is-invalid]="submitted && f['password'].errors"
+          [class.is-valid]="submitted && !f['password'].errors && f['password'].value"
+          maxlength="50"
+          placeholder="Enter your password"
+        />
+        <div class="invalid-feedback" *ngIf="submitted && f['password'].errors">
+          <div *ngIf="f['password'].errors['required']">Password is required</div>
+          <div *ngIf="f['password'].errors['minlength']">Password must be at least 6 characters</div>
+        </div>
+      </div>
+
+      <div class="error-box" *ngIf="errorMessage">
+        <i class="error-icon">⚠</i>
+        <span>{{ errorMessage }}</span>
+      </div>
+
+      <button type="submit" class="btn-login" [disabled]="isLoading">
+        <span *ngIf="!isLoading">Login</span>
+        <span *ngIf="isLoading" class="spinner"></span>
+      </button>
+    </form>
+  </div>
+</div>
